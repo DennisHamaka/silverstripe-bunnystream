@@ -4,6 +4,8 @@
  * Initialises each .bunny-upload-field wrapper:
  *  - Wires the Ontkoppelen button to clear the relation
  *  - Drives direct-to-Bunny TUS uploads (tus-js-client must be loaded by PHP)
+ *  - Lets the user attach an already-uploaded video (loaded on demand from the
+ *    listVideos endpoint) instead of re-uploading
  *  - Notifies UncleCheese DisplayLogic when the hidden BunnyVideoID value
  *    changes (its JS only listens to text/email/number inputs natively, so
  *    we trigger .notify() on the dispatcher wrapper ourselves)
@@ -87,12 +89,49 @@
         resyncDisplayLogic(input);
     }
 
+    function escapeHtml(str) {
+        return String(str == null ? '' : str)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    // Build the same preview markup the PHP Field() renders server-side, so a
+    // client-selected existing video looks identical to a reloaded one.
+    function buildPreviewHtml(fieldId, video) {
+        var poster = video.thumbnailUrl
+            ? '<img src="' + escapeHtml(video.thumbnailUrl) + '" alt="" style="max-width:160px; max-height:90px; border-radius:4px; object-fit:cover;" class="me-3 mr-3" onerror="this.style.display=\'none\'">'
+            : '';
+        var statusClass = video.isReady ? 'text-success' : 'text-warning';
+        var duration = video.duration
+            ? '<small class="text-muted ms-2 ml-2">' + escapeHtml(video.duration) + '</small>'
+            : '';
+        var editBtn = video.editUrl
+            ? '<a href="' + escapeHtml(video.editUrl) + '" target="_blank" class="btn btn-sm btn-outline-secondary ms-2 ml-2" title="Video openen in het videobeheer (nieuw tabblad)">'
+              + '<i class="font-icon-edit"></i> Bewerken'
+              + '</a>'
+            : '';
+
+        return '<div id="' + fieldId + '_preview" class="d-flex align-items-center p-2 border rounded" style="background:#f8f9fa;">'
+            + poster
+            + '<div class="flex-grow-1">'
+            + '<div class="fw-semibold font-weight-bold">' + escapeHtml(video.title) + '</div>'
+            + '<small class="' + statusClass + '">' + escapeHtml(video.status) + '</small>'
+            + duration
+            + '</div>'
+            + editBtn
+            + '<button type="button" id="' + fieldId + '_remove" class="btn btn-sm btn-outline-danger ms-2 ml-2" title="Video ontkoppelen">'
+            + '<i class="font-icon-link-broken"></i> Ontkoppelen'
+            + '</button>'
+            + '</div>';
+    }
+
     function init(wrapper) {
         if (wrapper.dataset.bunnyInit) return;
         wrapper.dataset.bunnyInit = '1';
 
         var fieldId = wrapper.dataset.fieldId;
         var createUrl = wrapper.dataset.createUrl;
+        var listUrl = wrapper.dataset.listUrl;
         if (!fieldId || !createUrl) return;
 
         var fileInput = document.getElementById(fieldId + '_file');
@@ -103,8 +142,8 @@
         var resultEl = document.getElementById(fieldId + '_result');
         var hiddenInput = document.getElementById(fieldId);
         var uploadWrap = document.getElementById(fieldId + '_upload');
-        var previewWrap = document.getElementById(fieldId + '_preview');
-        var removeBtn = document.getElementById(fieldId + '_remove');
+        var existingSelect = document.getElementById(fieldId + '_existing');
+        var existingBtn = document.getElementById(fieldId + '_existing_btn');
 
         // Set the hidden value AND wake up DisplayLogic + any other listeners.
         // Native dispatchEvent reaches addEventListener handlers; jQuery .trigger()
@@ -119,11 +158,80 @@
             notifyDisplayLogic(hiddenInput);
         }
 
-        if (removeBtn) {
-            removeBtn.addEventListener('click', function() {
-                setVideoId('');
-                if (previewWrap) previewWrap.style.setProperty('display', 'none', 'important');
-                if (uploadWrap) uploadWrap.style.display = 'block';
+        // Detach the current video: clear the value, drop any preview, and
+        // reveal the upload/select UI again.
+        function detachVideo() {
+            setVideoId('');
+            var preview = document.getElementById(fieldId + '_preview');
+            if (preview) preview.parentNode.removeChild(preview);
+            if (existingSelect) existingSelect.value = '';
+            if (existingBtn) existingBtn.disabled = true;
+            if (resultEl) { resultEl.style.display = 'none'; resultEl.textContent = ''; }
+            if (uploadWrap) uploadWrap.style.display = 'block';
+        }
+
+        // (Re)bind the Ontkoppelen button — the preview can be server-rendered
+        // at load or client-inserted after selecting an existing video.
+        function bindRemove() {
+            var removeBtn = document.getElementById(fieldId + '_remove');
+            if (removeBtn && !removeBtn.dataset.bound) {
+                removeBtn.dataset.bound = '1';
+                removeBtn.addEventListener('click', detachVideo);
+            }
+        }
+        bindRemove();
+
+        // Attach an existing video: insert a preview, hide the upload UI, store id.
+        function attachExisting(video) {
+            var existingPreview = document.getElementById(fieldId + '_preview');
+            if (existingPreview) existingPreview.parentNode.removeChild(existingPreview);
+
+            hiddenInput.insertAdjacentHTML('afterend', buildPreviewHtml(fieldId, video));
+            bindRemove();
+            setVideoId(video.id);
+            if (uploadWrap) uploadWrap.style.display = 'none';
+        }
+
+        // Lazy-load the existing-video list on first interaction with the select.
+        if (existingSelect && existingBtn && listUrl) {
+            var videosById = {};
+            var listLoaded = false;
+
+            function loadList() {
+                if (listLoaded) return;
+                listLoaded = true;
+                existingSelect.disabled = true;
+                fetch(listUrl, {
+                    credentials: 'same-origin',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(videos) {
+                    (videos || []).forEach(function(video) {
+                        videosById[video.id] = video;
+                        var opt = document.createElement('option');
+                        opt.value = video.id;
+                        var label = video.title || ('Video #' + video.id);
+                        var meta = [video.status, video.duration].filter(Boolean).join(' · ');
+                        opt.textContent = meta ? (label + ' (' + meta + ')') : label;
+                        existingSelect.appendChild(opt);
+                    });
+                    existingSelect.disabled = false;
+                })
+                .catch(function() {
+                    listLoaded = false; // allow a retry on next interaction
+                    existingSelect.disabled = false;
+                });
+            }
+
+            existingSelect.addEventListener('focus', loadList);
+            existingSelect.addEventListener('change', function() {
+                existingBtn.disabled = !existingSelect.value;
+            });
+
+            existingBtn.addEventListener('click', function() {
+                var video = videosById[existingSelect.value];
+                if (video) attachExisting(video);
             });
         }
 

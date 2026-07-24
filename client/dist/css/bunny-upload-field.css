@@ -1,0 +1,39 @@
+/**
+ * BunnyUploadField styling.
+ *
+ * The attached-video preview shows a "Bewerken" (<a>) and an "Ontkoppelen"
+ * (<button>) action side by side. Because they are different elements, the
+ * native box + the SilverStripe icon-font glyph metrics made them render at
+ * slightly different heights, and the cancel (X) glyph sat a touch low.
+ *
+ * Normalise both: lay each button out as a flex row so the icon and label are
+ * vertically centred regardless of glyph baseline, and strip the icon font's
+ * default line-height/margins so the two buttons match in size.
+ */
+.bunny-upload-field .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3em;
+    line-height: 1.2;
+}
+
+/* Bewerken (<a>) and Ontkoppelen (<button>) are different elements: the <a>
+   inherits the surrounding font-size while the <button> uses its own larger
+   UA/CMS size, so it rendered bigger. Force both preview actions (the only
+   .btn-sm here) to inherit so their font size matches the smaller <a>. */
+.bunny-upload-field .btn-sm {
+    font-size: inherit;
+}
+
+.bunny-upload-field .btn [class^="font-icon-"],
+.bunny-upload-field .btn [class*=" font-icon-"] {
+    line-height: 1;
+}
+
+/* SilverStripe renders the glyph via ::before with its own margin — remove it
+   so the flex `gap` alone controls icon/label spacing and the glyph centres. */
+.bunny-upload-field .btn [class^="font-icon-"]::before,
+.bunny-upload-field .btn [class*=" font-icon-"]::before {
+    margin: 0;
+    vertical-align: middle;
+}
