@@ -6,6 +6,21 @@ CDN instead of your own server.
 
 Developed and maintained by [Restruct](https://restruct.nl).
 
+## Fork Notice
+
+This is a fork of [restruct/silverstripe-bunnystream](https://github.com/restruct/silverstripe-bunnystream).
+
+Changes in this fork:
+- **Attach existing videos** — `BunnyUploadField` can select an already-uploaded
+  `BunnyVideo` instead of only uploading a new one, with **Bewerken**/**Ontkoppelen**
+  actions on the attached-video preview.
+- **Config-driven embed presets** — templates render with `$Video` /
+  `$Video.Embed('<preset>')` from named YAML presets (see [Embed presets](#embed-presets)),
+  replacing hand-written per-consumer embed methods.
+- **CMS title sync** — renaming a video in the admin pushes the new title back to the
+  Bunny library.
+- **Upload-field styling** — Bootstrap-aligned CSS for the CMS upload control.
+
 ## Features
 
 - **Direct-to-Bunny uploads** from the CMS — the browser uploads straight to Bunny
@@ -31,26 +46,57 @@ Developed and maintained by [Restruct](https://restruct.nl).
 
 ## Installation
 
-Install with Composer:
+This is a fork of `restruct/silverstripe-bunnystream`, not a Packagist original, so
+it must be installed via a VCS repository entry.
 
-```bash
-composer require restruct/silverstripe-bunnystream
+### 1. Add the fork as a repository
+
+In your project's root `composer.json`:
+
+```json
+{
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/DennisHamaka/silverstripe-bunnystream"
+        }
+    ]
+}
 ```
 
-> Not on Packagist? Add the repository to your project `composer.json` first:
->
-> ```json
-> "repositories": [
->     { "type": "vcs", "url": "https://github.com/DennisHamaka/silverstripe-bunnystream" }
-> ]
-> ```
+### 2. Require the fork
 
-Then build the database and expose the client assets:
+```bash
+composer require restruct/silverstripe-bunnystream:dev-main
+```
+
+Or pin to a specific branch/tag/commit:
+
+```bash
+composer require restruct/silverstripe-bunnystream:dev-my-fix-branch
+composer require restruct/silverstripe-bunnystream:^1.0
+composer require restruct/silverstripe-bunnystream:dev-main#abc1234
+```
+
+> Composer resolves `restruct/silverstripe-bunnystream` from your fork instead of
+> Packagist because the VCS repository takes priority for that package name.
+
+### 3. Run the build steps
+
+Build the database and expose the client assets:
 
 ```bash
 vendor/bin/sake dev/build flush=1
 composer vendor-expose
 ```
+
+### 4. Verify
+
+```bash
+composer show restruct/silverstripe-bunnystream
+```
+
+Confirm the `source` points to your fork's URL, not the upstream repository.
 
 ## Configuration
 
