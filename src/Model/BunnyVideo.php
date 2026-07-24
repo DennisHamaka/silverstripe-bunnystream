@@ -319,14 +319,28 @@ class BunnyVideo extends DataObject
         $client = new BunnyStreamClient();
         $data = $client->getVideo($this->VideoGuid);
 
-        $this->Title = $data->title ?? $this->Title;
+        # The CMS-edited title is authoritative (it's pushed TO Bunny on save), so
+        # only adopt Bunny's title when we don't have a local one yet. This keeps a
+        # renamed-but-still-transcoding video from being reverted on the next CMS
+        # open, where getCMSFields() auto-refreshes not-yet-ready videos.
+        if (!$this->Title) {
+            $this->Title = $data->title ?? $this->Title;
+        }
         $this->Status = $data->status ?? $this->Status;
         $this->Duration = $data->length ?? $this->Duration;
         $this->Width = $data->width ?? $this->Width;
         $this->Height = $data->height ?? $this->Height;
         $this->EncodeProgress = $data->encodeProgress ?? $this->EncodeProgress;
         $this->StorageSize = $data->storageSize ?? $this->StorageSize;
-        $this->write();
+
+        # Title was just pulled FROM Bunny — flag the write so onAfterWrite
+        # doesn't immediately echo it back via updateVideo().
+        $this->syncingFromApi = true;
+        try {
+            $this->write();
+        } finally {
+            $this->syncingFromApi = false;
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -524,14 +538,60 @@ class BunnyVideo extends DataObject
     public ?bool $ForceLocalDelete = null;
 
     /**
+     * Set while refreshFromApi() writes API-sourced data back, so onAfterWrite
+     * doesn't push a just-pulled title straight back to Bunny.
+     * @internal
+     */
+    protected bool $syncingFromApi = false;
+
+    /**
+     * Captured in onBeforeWrite (where isChanged() is reliable) and acted on in
+     * onAfterWrite to push the new title to Bunny.
+     * @internal
+     */
+    protected bool $pushTitleToBunny = false;
+
+    /**
      * Persist the ForceLocalDelete checkbox state into the user's session so
      * the subsequent delete request can find it. Cleared when unchecked.
+     * Also flags a title change so it can be synced to Bunny after the write.
      */
     public function onBeforeWrite()
     {
         parent::onBeforeWrite();
         if ($this->ID && $this->ForceLocalDelete !== null) {
             $this->setForceLocalDeleteSession((bool) $this->ForceLocalDelete);
+        }
+
+        # Push an edited title back to Bunny so the library stays in sync — but
+        # not when this write is refreshFromApi() echoing Bunny's own title back.
+        $this->pushTitleToBunny = !$this->syncingFromApi
+            && (bool) $this->VideoGuid
+            && $this->isChanged('Title');
+    }
+
+    /**
+     * Sync a changed title to the Bunny library. Best-effort: the local save
+     * has already succeeded, so a failed remote update is logged, not fatal.
+     */
+    public function onAfterWrite()
+    {
+        parent::onAfterWrite();
+
+        if (!$this->pushTitleToBunny) {
+            return;
+        }
+        $this->pushTitleToBunny = false;
+
+        try {
+            (new BunnyStreamClient())->updateVideo($this->VideoGuid, ['title' => (string) $this->Title]);
+        } catch (\Throwable $e) {
+            Injector::inst()->get(LoggerInterface::class)->warning(sprintf(
+                'BunnyVideo #%d (%s): failed to sync title to Bunny: %s',
+                $this->ID,
+                $this->VideoGuid,
+                $e->getMessage()
+            ));
         }
     }
 

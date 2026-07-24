@@ -3,6 +3,7 @@
 namespace Restruct\BunnyStream\Api;
 
 use GuzzleHttp\Client;
+use GuzzleHttp\Exception\ClientException;
 use SilverStripe\Core\Environment;
 
 /**
@@ -92,11 +93,32 @@ class BunnyStreamClient
     }
 
     /**
-     * Delete a video.
+     * Update a video's editable metadata (e.g. title).
+     *
+     * @param string $videoId The video GUID
+     * @param array{title?: string, collectionId?: string} $data Fields to update
+     * @link https://docs.bunny.net/reference/video_updatevideo
+     */
+    public function updateVideo(string $videoId, array $data): object
+    {
+        return $this->request('POST', "/library/{$this->libraryId}/videos/{$videoId}", $data);
+    }
+
+    /**
+     * Delete a video. Idempotent: a 404 (the video is already gone on Bunny)
+     * is treated as success, since the desired end state — no such remote
+     * video — is already true.
      */
     public function deleteVideo(string $videoId): void
     {
-        $this->request('DELETE', "/library/{$this->libraryId}/videos/{$videoId}");
+        try {
+            $this->request('DELETE', "/library/{$this->libraryId}/videos/{$videoId}");
+        } catch (ClientException $e) {
+            if ($e->getResponse()->getStatusCode() === 404) {
+                return;
+            }
+            throw $e;
+        }
     }
 
     // -------------------------------------------------------------------------
