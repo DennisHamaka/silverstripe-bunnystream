@@ -112,35 +112,54 @@ thumbnail with **Bewerken** (open the video in the video admin) and **Ontkoppele
 
 ### Embedding the video in a template
 
-`BunnyVideo::getPlayerIframeHTML()` builds a responsive player iframe. It takes an
-options array that templates can't construct, so expose it through a method on the
-owning class:
-
-```php
-use SilverStripe\ORM\FieldType\DBHTMLText;
-
-public function getHeaderVideoEmbed(): DBHTMLText
-{
-    $html  = DBHTMLText::create();
-    $video = $this->HeaderVideo();
-
-    if (!$video || !$video->VideoGuid) {
-        return $html->setValue('');
-    }
-
-    return $html->setValue($video->getPlayerIframeHTML([
-        'autoplay' => true,
-        'muted'    => true,
-        'loop'     => true,
-        'controls' => false,
-    ]));
-}
-```
+Output the relation directly and it renders the default player — no per-page PHP
+needed. For a different style, pass a preset name to `.Embed()`:
 
 ```html
-<%-- Template --%>
-<% if $HeaderVideoEmbed %>$HeaderVideoEmbed<% end_if %>
+<%-- Common in-content player: native controls, no autoplay --%>
+$HeaderVideo
+
+<%-- Muted looping background/hero: autoplay, no controls --%>
+$HeaderVideo.Embed('autoplay')
 ```
+
+Both render an empty string when no video is attached, so they're safe to call
+unconditionally. `$HeaderVideo` is shorthand for `$HeaderVideo.Embed('default')`.
+See [Embed presets](#embed-presets) below to tweak the presets or add your own.
+
+## Embed presets
+
+`$Video.Embed('name')` renders a named preset (and bare `$Video` renders the
+`default` one). Presets are plain option sets (`autoplay`, `muted`, `loop`,
+`controls`) defined in YAML, so you can retune them or add your own without touching
+PHP. The two built-ins:
+
+| Preset | Behaviour |
+| --- | --- |
+| `default` | Native controls, no autoplay — the normal in-content player. |
+| `autoplay` | Muted, looping, no controls — background/hero video. |
+
+Override a built-in or add your own from your project's YAML config:
+
+```yaml
+# app/_config/bunnystream.yml
+Restruct\BunnyStream\Model\BunnyVideo:
+  embed_presets:
+    # New preset — use as $Video.Embed('hero')
+    hero:
+      autoplay: true
+      muted: true
+      loop: true
+      controls: false
+    # Retune a built-in — e.g. let the background preset show controls
+    autoplay:
+      autoplay: true
+      muted: true
+      loop: true
+      controls: true
+```
+
+An unknown preset name falls back to `default` behaviour.
 
 ## The `BunnyVideo` model
 
@@ -148,7 +167,8 @@ Useful methods on `Restruct\BunnyStream\Model\BunnyVideo`:
 
 | Method | Returns |
 | --- | --- |
-| `getPlayerIframeHTML(array $options = [])` | Responsive `<iframe>` embed. Options: `autoplay`, `muted`, `loop`, `controls`. |
+| `Embed(string $preset = 'default')` | Template-safe responsive embed for a named [preset](#embed-presets). Empty when no video is attached. Bare `$Video` calls this via `forTemplate()`. |
+| `getPlayerIframeHTML(array $options = [])` | Low-level `<iframe>` builder behind `Embed`. Options: `autoplay`, `muted`, `loop`, `controls`. |
 | `getPlayerURL()` | The (optionally signed) embed URL. |
 | `getThumbnailUrl()` | The poster/thumbnail URL. |
 | `isReady()` | `true` once Bunny has finished transcoding. |

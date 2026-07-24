@@ -5,8 +5,26 @@ Name: bunnystream
 # Env vars required:
 # BUNNY_STREAM_API_KEY: Your Bunny Stream library API key
 # BUNNY_STREAM_LIBRARY_ID: Your Bunny Stream library ID
-# BUNNY_STREAM_CDN_HOSTNAME: Optional custom CDN hostname (default: iframe.mediadelivery.net)
-# BUNNY_STREAM_TOKEN_AUTH_KEY: Optional library "Token Authentication Key" — when set
+#
+# Optional
+# BUNNY_STREAM_CDN_HOSTNAME: Custom CDN hostname (default: iframe.mediadelivery.net)
+# BUNNY_STREAM_TOKEN_AUTH_KEY: Library "Token Authentication Key" — when set
 #                              AND the library has token authentication enabled in Bunny's
 #                              dashboard, embed URLs are signed with SHA256(key + videoId
 #                              + expires) and valid for a limited time window (default 4h).
+
+# Named embed presets used by $Video.Embed('<name>') in templates. Each preset is
+# an options set for BunnyVideo::getPlayerIframeHTML(). Projects can override a
+# preset or add their own by declaring the same key with a later `After` config.
+Restruct\BunnyStream\Model\BunnyVideo:
+  embed_presets:
+    # Common in-content player: native controls, no autoplay. $Video.Embed
+    default:
+      autoplay: false
+      controls: true
+    # Muted looping background/hero, no controls. $Video.Embed('autoplay')
+    autoplay:
+      autoplay: true
+      muted: true
+      loop: true
+      controls: false

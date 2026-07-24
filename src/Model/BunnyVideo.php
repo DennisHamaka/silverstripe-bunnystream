@@ -70,6 +70,16 @@ class BunnyVideo extends DataObject
         'VideoGuid',
     ];
 
+    /**
+     * Named embed presets for the template-facing Embed() method. Each entry is
+     * an options set for getPlayerIframeHTML() (autoplay, muted, loop, controls).
+     * Defaults ('default', 'autoplay') ship in bunnystream.yml; projects can
+     * override them or add their own via YAML — no PHP needed.
+     *
+     * @var array<string,array<string,bool>>
+     */
+    private static $embed_presets = [];
+
     // -------------------------------------------------------------------------
     // Status / formatting helpers
     // -------------------------------------------------------------------------
@@ -273,6 +283,44 @@ class BunnyVideo extends DataObject
     {
         $client = new BunnyStreamClient();
         return $client->getThumbnailUrl($this->VideoGuid);
+    }
+
+    /**
+     * Resolve a named preset from embed_presets into an options array for
+     * getPlayerIframeHTML(). An unknown name falls back to an empty set, i.e.
+     * the plain 'default' behaviour (native controls, no autoplay).
+     */
+    public function getEmbedPreset(string $name): array
+    {
+        $presets = (array) $this->config()->get('embed_presets');
+        return isset($presets[$name]) && is_array($presets[$name]) ? $presets[$name] : [];
+    }
+
+    /**
+     * Render the 'default' preset when the video is output directly in a
+     * template ($Video / $VideoMobile), so the common case needs no method call.
+     * Non-default presets are still selected explicitly via $Video.Embed('name').
+     */
+    public function forTemplate(): DBHTMLText
+    {
+        return $this->Embed();
+    }
+
+    /**
+     * Template-safe player embed. Renders the responsive iframe for a named
+     * preset (see embed_presets in bunnystream.yml). Returns empty when no video
+     * is attached, so templates can call it unconditionally.
+     *
+     *   $Video                    — common in-content player (controls, no autoplay)
+     *   $Video.Embed('autoplay')  — muted looping background (no controls)
+     */
+    public function Embed(string $preset = 'default'): DBHTMLText
+    {
+        $html = DBHTMLText::create();
+        if (!$this->VideoGuid) {
+            return $html->setValue('');
+        }
+        return $html->setValue($this->getPlayerIframeHTML($this->getEmbedPreset($preset)));
     }
 
     public function getPlayerIframeHTML(array $options = []): string
