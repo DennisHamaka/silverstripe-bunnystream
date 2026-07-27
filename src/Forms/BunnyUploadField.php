@@ -243,14 +243,9 @@ EXISTING;
              loaded on demand from the listVideos endpoint by the field's JS. -->
         <div class="bunny-existing mt-3" style="max-width:560px;">
             <div class="text-muted small mb-1">of kies een bestaande video</div>
-            <div class="input-group">
-                <select id="{$fieldId}_existing" class="form-control custom-select">
-                    <option value="">— Bestaande video kiezen —</option>
-                </select>
-                <div class="input-group-append">
-                    <button type="button" id="{$fieldId}_existing_btn" class="btn btn-outline-info" disabled>Koppelen</button>
-                </div>
-            </div>
+            <select id="{$fieldId}_existing" class="form-control custom-select">
+                <option value="">— Bestaande video kiezen —</option>
+            </select>
         </div>
         {$descriptionHtml}
     </div>

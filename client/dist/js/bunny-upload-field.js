@@ -146,7 +146,6 @@
         var hiddenInput = document.getElementById(fieldId);
         var uploadWrap = document.getElementById(fieldId + '_upload');
         var existingSelect = document.getElementById(fieldId + '_existing');
-        var existingBtn = document.getElementById(fieldId + '_existing_btn');
 
         // Set the hidden value AND wake up DisplayLogic + any other listeners.
         // Native dispatchEvent reaches addEventListener handlers; jQuery .trigger()
@@ -168,7 +167,6 @@
             var preview = document.getElementById(fieldId + '_preview');
             if (preview) preview.parentNode.removeChild(preview);
             if (existingSelect) existingSelect.value = '';
-            if (existingBtn) existingBtn.disabled = true;
             if (resultEl) { resultEl.style.display = 'none'; resultEl.textContent = ''; }
             if (uploadWrap) uploadWrap.style.display = 'block';
         }
@@ -195,15 +193,17 @@
             if (uploadWrap) uploadWrap.style.display = 'none';
         }
 
-        // Lazy-load the existing-video list on first interaction with the select.
-        if (existingSelect && existingBtn && listUrl) {
+        // Populate the existing-video list. Loaded eagerly on init (not on
+        // first focus) so the dropdown is filled before the user opens it —
+        // a lazy focus-load leaves the first click showing an empty list
+        // because the fetch hasn't resolved by the time the menu opens.
+        if (existingSelect && listUrl) {
             var videosById = {};
             var listLoaded = false;
 
             function loadList() {
                 if (listLoaded) return;
                 listLoaded = true;
-                existingSelect.disabled = true;
                 fetch(listUrl, {
                     credentials: 'same-origin',
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }
@@ -219,20 +219,18 @@
                         opt.textContent = meta ? (label + ' (' + meta + ')') : label;
                         existingSelect.appendChild(opt);
                     });
-                    existingSelect.disabled = false;
                 })
                 .catch(function() {
                     listLoaded = false; // allow a retry on next interaction
-                    existingSelect.disabled = false;
                 });
             }
 
+            loadList();
+            // Retry if the eager load failed (network hiccup on panel load).
             existingSelect.addEventListener('focus', loadList);
-            existingSelect.addEventListener('change', function() {
-                existingBtn.disabled = !existingSelect.value;
-            });
 
-            existingBtn.addEventListener('click', function() {
+            // No confirm button: attaching happens as soon as a video is picked.
+            existingSelect.addEventListener('change', function() {
                 var video = videosById[existingSelect.value];
                 if (video) attachExisting(video);
             });
