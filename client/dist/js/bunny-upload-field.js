@@ -132,6 +132,9 @@
         var fieldId = wrapper.dataset.fieldId;
         var createUrl = wrapper.dataset.createUrl;
         var listUrl = wrapper.dataset.listUrl;
+        // Upload-only mode (VideoAdmin "add new"): no relation to store, no
+        // existing-video picker — on success redirect to the new record's edit form.
+        var uploadOnly = wrapper.dataset.uploadOnly === '1';
         if (!fieldId || !createUrl) return;
 
         var fileInput = document.getElementById(fieldId + '_file');
@@ -280,6 +283,25 @@
                         }
                     },
                     onSuccess: function() {
+                        // Upload-only: the BunnyVideo already exists server-side.
+                        // Redirect straight to its edit form. We never touched any
+                        // form field, so the create form stays pristine — no
+                        // "unsaved changes" prompt blocks the navigation.
+                        if (uploadOnly) {
+                            if (progressBar) {
+                                progressBar.style.width = '100%';
+                                progressBar.textContent = '100%';
+                                progressBar.classList.add('bg-success');
+                            }
+                            if (statusEl) statusEl.textContent = 'Video geüpload — bezig met openen...';
+                            if (data.editUrl) {
+                                window.location.href = data.editUrl;
+                            } else if (resultEl) {
+                                resultEl.textContent = 'Video geüpload en toegevoegd aan de lijst.';
+                                resultEl.style.display = 'block';
+                            }
+                            return;
+                        }
                         setVideoId(data.bunnyVideoId);
                         if (progressBar) {
                             progressBar.style.width = '100%';

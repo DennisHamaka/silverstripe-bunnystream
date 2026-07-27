@@ -4,6 +4,7 @@ namespace Restruct\BunnyStream\Model;
 
 use Psr\Log\LoggerInterface;
 use Restruct\BunnyStream\Api\BunnyStreamClient;
+use Restruct\BunnyStream\Forms\BunnyUploadField;
 use SilverStripe\Assets\Image;
 use SilverStripe\Control\Controller;
 use SilverStripe\Core\ClassInfo;
@@ -11,11 +12,14 @@ use SilverStripe\Core\Injector\Injector;
 use SilverStripe\Forms\CheckboxField;
 use SilverStripe\Forms\CompositeField;
 use SilverStripe\Forms\FieldGroup;
+use SilverStripe\Forms\FieldList;
 use SilverStripe\Forms\GridField\GridField;
 use SilverStripe\Forms\GridField\GridFieldConfig_RecordViewer;
 use SilverStripe\Forms\HeaderField;
 use SilverStripe\Forms\LiteralField;
 use SilverStripe\Forms\ReadonlyField;
+use SilverStripe\Forms\Tab;
+use SilverStripe\Forms\TabSet;
 use SilverStripe\Forms\TextareaField;
 use SilverStripe\Forms\TextField;
 use SilverStripe\ORM\ArrayList;
@@ -443,6 +447,23 @@ class BunnyVideo extends DataObject
 
     public function getCMSFields()
     {
+        # New record (VideoAdmin "add new"): present an upload-only screen instead
+        # of the scaffolded fields. A successful upload creates the BunnyVideo
+        # server-side (BunnyUploadField::createUpload) and the browser is redirected
+        # to that record's edit form — so this create form is never saved empty.
+        if (!$this->exists()) {
+            return FieldList::create(
+                TabSet::create('Root',
+                    Tab::create('Main',
+                        HeaderField::create('UploadHeader', 'Nieuwe video uploaden', 3),
+                        BunnyUploadField::create('UploadVideo', 'Videobestand')
+                            ->setUploadOnly(true)
+                            ->setDescription('Kies een videobestand. Na het uploaden wordt de video automatisch geopend.')
+                    )
+                )
+            );
+        }
+
         # Auto-sync metadata from Bunny when video isn't yet finished processing.
         # Bunny processes async (created → uploaded → processing → transcoding → finished),
         # so admin will see "Onbekend"/0 right after upload — refresh on every CMS open
@@ -572,6 +593,22 @@ class BunnyVideo extends DataObject
     public function getTitle(): string
     {
         return $this->getField('Title') ?: $this->VideoGuid ?: '(geen video)';
+    }
+
+    /**
+     * Never persist a record without a Bunny video. Guards the upload-only "add
+     * new" screen: if the create form is submitted before an upload has created
+     * the video (which sets VideoGuid), the write is rejected instead of leaving
+     * an empty junk record. Normal flows (createUpload, title/poster edits) always
+     * have a VideoGuid set, so this never fires for them.
+     */
+    public function validate()
+    {
+        $result = parent::validate();
+        if (!$this->VideoGuid) {
+            $result->addError('Upload eerst een video voordat je opslaat.');
+        }
+        return $result;
     }
 
     // -------------------------------------------------------------------------

@@ -23,6 +23,26 @@ class BunnyUploadField extends FormField
 {
     protected $schemaDataType = 'Custom';
 
+    /**
+     * Upload-only mode: render just the upload control — no existing-video
+     * picker, no attached-video preview, no relation hidden input. Used by the
+     * VideoAdmin "add new" screen, where a successful upload already created the
+     * BunnyVideo (via createUpload) and the browser is redirected to its edit
+     * form, so this form is never saved as an empty record.
+     */
+    protected bool $uploadOnly = false;
+
+    public function setUploadOnly(bool $uploadOnly = true): self
+    {
+        $this->uploadOnly = $uploadOnly;
+        return $this;
+    }
+
+    public function getUploadOnly(): bool
+    {
+        return $this->uploadOnly;
+    }
+
     private static array $allowed_actions = [
         'createUpload',
         'listVideos',
@@ -66,6 +86,7 @@ class BunnyUploadField extends FormField
         $response->setBody(json_encode([
             'videoGuid' => $videoGuid,
             'bunnyVideoId' => $BunnyVideo->ID,
+            'editUrl' => $this->getVideoEditLink((int) $BunnyVideo->ID),
             'tusEndpoint' => $tusCredentials['endpoint'],
             'tusHeaders' => $tusCredentials['headers'],
         ]));
@@ -124,6 +145,10 @@ class BunnyUploadField extends FormField
 
     public function Field($properties = [])
     {
+        if ($this->uploadOnly) {
+            return $this->uploadOnlyField();
+        }
+
         $fieldId = $this->ID();
         $name = $this->getName();
         $value = $this->Value();
@@ -233,6 +258,53 @@ EXISTING;
 HTML;
 
         return $html;
+    }
+
+    /**
+     * Simplified markup for upload-only mode: just the file input, upload
+     * button, progress and result. No hidden relation input and no existing-
+     * video picker — a successful upload creates the record server-side and the
+     * JS redirects to its edit form (data-upload-only tells the JS to do so).
+     */
+    private function uploadOnlyField(): string
+    {
+        $fieldId = $this->ID();
+        $createUrl = $this->Link('createUpload');
+
+        Requirements::javascript('https://cdn.jsdelivr.net/npm/tus-js-client@4/dist/tus.min.js');
+        Requirements::javascript('restruct/silverstripe-bunnystream:client/dist/js/bunny-upload-field.js');
+        Requirements::css('restruct/silverstripe-bunnystream:client/dist/css/bunny-upload-field.css');
+
+        # Pull the field description into the upload block (blank the FormField-level
+        # one so the SS wrapping template doesn't render it a second time).
+        $descriptionText = (string) $this->getDescription();
+        $descriptionHtml = $descriptionText !== '' ? '<div class="form__field-description small text-muted mt-1">' . $descriptionText . '</div>' : '';
+        $this->setDescription('');
+
+        $safeCreateUrl = htmlspecialchars($createUrl);
+        $safeFieldId = htmlspecialchars($fieldId);
+
+        return <<<HTML
+<div id="{$fieldId}_wrapper" class="bunny-upload-field" data-field-id="{$safeFieldId}" data-create-url="{$safeCreateUrl}" data-upload-only="1">
+    <div id="{$fieldId}_upload">
+        <div class="input-group bunny-upload-controls" style="max-width:560px;">
+            <input type="file" id="{$fieldId}_file" accept="video/*" class="form-control" aria-describedby="{$fieldId}_btn" style="padding:.35rem;" />
+            <!-- SS CMS bundles Bootstrap 4: input-group children need the input-group-append wrapper to flush -->
+            <div class="input-group-append">
+                <button type="button" id="{$fieldId}_btn" class="btn btn-outline-info" disabled>Video uploaden</button>
+            </div>
+        </div>
+        <div id="{$fieldId}_status" class="text-muted small mt-1"></div>
+
+        <div id="{$fieldId}_progress" class="progress mt-2" style="display:none; max-width:560px; height:8px;">
+            <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+        </div>
+
+        <div id="{$fieldId}_result" class="mt-2 text-success small" style="display:none;"></div>
+        {$descriptionHtml}
+    </div>
+</div>
+HTML;
     }
 
     public function Type()

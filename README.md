@@ -14,6 +14,10 @@ Changes in this fork:
 - **Attach existing videos** — `BunnyUploadField` can select an already-uploaded
   `BunnyVideo` instead of only uploading a new one, with **Bewerken**/**Ontkoppelen**
   actions on the attached-video preview.
+- **Upload-first video admin** — the **Video's** admin "add new" button opens an
+  upload-only screen (just the upload control, no attach-existing picker). The upload
+  creates the `BunnyVideo` directly and redirects to its edit form, so no empty
+  records are left behind.
 - **Config-driven embed presets** — templates render with `$Video` /
   `$Video.Embed('<preset>')` from named YAML presets (see [Embed presets](#embed-presets)),
   replacing hand-written per-consumer embed methods.
@@ -224,6 +228,16 @@ Per-video player options are editable in the video admin: `rememberPosition`
 The module registers a **Video's** admin menu listing every `BunnyVideo` with
 thumbnail and status. Open a record to edit its title/description, set player
 options, upload a custom poster, and see which records use it.
+
+**Adding a video** — the "Add new" button opens an upload-only screen: pick a
+file, it uploads straight to Bunny, and you land on the new video's edit form.
+There's no "save an empty record" step — the record is created by the upload
+itself (a create submitted without an upload is rejected).
+
+`BunnyUploadField::setUploadOnly(true)` produces this upload-only variant (no
+attach-existing picker, redirects to the created record on success); it's what
+the admin's new-record form uses and can be reused wherever a bare "upload a new
+video" control is wanted.
 
 ## Notes & gotchas
 
