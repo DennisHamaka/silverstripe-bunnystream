@@ -58,7 +58,7 @@ In your project's root `composer.json`:
     "repositories": [
         {
             "type": "vcs",
-            "url": "https://github.com/DennisHamaka/silverstripe-bunnystream"
+            "url": "https://github.com/hamaka/silverstripe-bunnystream"
         }
     ]
 }
@@ -67,15 +67,7 @@ In your project's root `composer.json`:
 ### 2. Require the fork
 
 ```bash
-composer require restruct/silverstripe-bunnystream:dev-main
-```
-
-Or pin to a specific branch/tag/commit:
-
-```bash
-composer require restruct/silverstripe-bunnystream:dev-my-fix-branch
-composer require restruct/silverstripe-bunnystream:^1.0
-composer require restruct/silverstripe-bunnystream:dev-main#abc1234
+composer require restruct/silverstripe-bunnystream:dev-main-hmk
 ```
 
 > Composer resolves `restruct/silverstripe-bunnystream` from your fork instead of
